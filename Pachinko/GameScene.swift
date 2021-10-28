@@ -10,6 +10,15 @@ import SpriteKit
 class GameScene: SKScene, SKPhysicsContactDelegate {
     var scoreLabel: SKLabelNode!
     var editLabel: SKLabelNode!
+    var ballLabel: SKLabelNode!
+    var ballSpriteNames = [String]()
+    let numBallsStart = 20
+    
+    var balls = 0 {
+        didSet {
+            ballLabel.text = "Balls: \(balls)"
+        }
+    }
     
     var score = 0 {
         didSet {
@@ -28,6 +37,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     }
     
     override func didMove(to view: SKView) {
+        performSelector(inBackground: #selector(scanForBallSprites), with: nil)
+        
         let background = SKSpriteNode(imageNamed: "background.jpg")
         background.position = CGPoint(x: 512, y: 384)
         background.blendMode = .replace
@@ -53,10 +64,17 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         scoreLabel.position = CGPoint(x: 980, y: 700)
         addChild(scoreLabel)
         
+        ballLabel = SKLabelNode(fontNamed: "Chalkduster")
+        ballLabel.horizontalAlignmentMode = .right
+        ballLabel.position = CGPoint(x: 980, y: 670)
+        addChild(ballLabel)
+        
         editLabel = SKLabelNode(fontNamed: "Chalkduster")
         editLabel.text = "Edit"
         editLabel.position = CGPoint(x: 80, y: 700)
         addChild(editLabel)
+        
+        balls = numBallsStart
     }
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -69,7 +87,12 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             } else {
                 if editingMode {
                     let size = CGSize(width: Int.random(in: 16...128), height: 16)
-                    let box = SKSpriteNode(color: UIColor(red: CGFloat.random(in: 0...1), green: CGFloat.random(in: 0...1), blue: CGFloat.random(in: 0...1), alpha: 1), size: size)
+                    let box = SKSpriteNode(color: UIColor(
+                        red: CGFloat.random(in: 0...1),
+                        green: CGFloat.random(in: 0...1),
+                        blue: CGFloat.random(in: 0...1),
+                        alpha: 1
+                    ), size: size)
                     box.zRotation = CGFloat.random(in: 0...3)
                     box.position = location
                     
@@ -78,15 +101,25 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                     
                     addChild(box)
                 } else {
-                    let ball = SKSpriteNode(imageNamed: "ballRed")
+                    guard balls > 0 else { return }
+                    
+                    let ball = SKSpriteNode(imageNamed: ballSpriteNames.randomElement() ?? "ballRed")
                     ball.physicsBody = SKPhysicsBody(circleOfRadius: ball.size.width / 2.0)
                     ball.physicsBody!.contactTestBitMask = ball.physicsBody!.collisionBitMask
                     ball.physicsBody!.restitution = 0.4
                     ball.position = CGPoint(x: location.x, y: 767.0)
                     ball.name = "ball"
                     addChild(ball)
+                    balls -= 1
                 }
             }
+        }
+    }
+    
+    @objc func scanForBallSprites() {
+        let bundlePath = Bundle.main.bundlePath
+        if let fileNames = try? FileManager.default.contentsOfDirectory(atPath: bundlePath) {
+            ballSpriteNames = fileNames.filter { $0.hasPrefix("ball") && $0.hasSuffix(".png") }
         }
     }
     
@@ -127,6 +160,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     }
     
     func destroy(ball: SKNode) {
+        if let fireParticles = SKEmitterNode(fileNamed: "FireParticles") {
+            fireParticles.position = ball.position
+            addChild(fireParticles)
+        }
+        
         ball.removeFromParent()
     }
     
@@ -134,6 +172,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         if object.name == "good" {
             destroy(ball: ball)
             score += 1
+            balls += 1
         } else if object.name == "bad" {
             destroy(ball: ball)
             score -= 1
